@@ -1,0 +1,4 @@
+node_modules/
+klines_cache.json
+*.csv
+*.json

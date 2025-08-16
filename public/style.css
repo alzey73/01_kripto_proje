@@ -1,0 +1,103 @@
+body {
+    font-family: 'Arial', sans-serif;
+    background-color: #1a1a2e; /* Koyu arka plan */
+    color: #e0e0e0; /* Açık yazı rengi */
+    margin: 0;
+    padding: 20px;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 100vh;
+}
+
+.container {
+    background-color: #16213e; /* Koyu mavi kart rengi */
+    border-radius: 12px;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+    padding: 30px;
+    width: 90%;
+    max-width: 1200px;
+    text-align: center;
+    box-sizing: border-box;
+}
+
+h1, h2 {
+    color: #e94560; /* Kırmızımsı başlık rengi */
+    margin-bottom: 20px;
+}
+
+.info-card {
+    background-color: #0f3460; /* Daha koyu mavi */
+    padding: 15px 20px;
+    border-radius: 8px;
+    margin-bottom: 30px;
+    display: flex;
+    justify-content: space-around;
+    flex-wrap: wrap; /* Küçük ekranlarda alt alta gelmesi için */
+    gap: 15px;
+}
+
+.info-card p {
+    font-size: 1.2em;
+    margin: 0;
+    padding: 0;
+}
+
+.info-card span {
+    font-weight: bold;
+    color: #53bf9d; /* Yeşilimsi vurgu rengi */
+}
+
+.chart-section {
+    background-color: #0f3460;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 30px;
+    position: relative; /* Grafik için gerekli */
+}
+
+canvas {
+    max-width: 100%;
+    height: 400px; /* Grafik yüksekliği */
+    background-color: #0a1128; /* Grafik arkaplanı */
+    border-radius: 8px;
+}
+
+/* Mobil cihazlar için responsive ayarlar */
+@media (max-width: 768px) {
+    .container {
+        padding: 15px;
+        width: 95%;
+    }
+
+    h1 {
+        font-size: 1.8em;
+    }
+
+    h2 {
+        font-size: 1.4em;
+    }
+
+    .info-card {
+        flex-direction: column;
+    }
+}
+
+.checkbox-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+    justify-content: center; /* Ortalamak için */
+}
+
+.checkbox-container input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    accent-color: #e94560; /* Checkbox rengi */
+}
+
+.checkbox-container label {
+    font-size: 1.1em;
+    color: #e0e0e0;
+}

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kripto Analiz Paneli</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Chart.js kütüphanesini dahil ediyoruz -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <!-- Chart.js Candlestick eklentisi (şimdilik kullanmayacağız ama gelecekte lazım olabilir) -->
+    <!-- <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@0.1.0/dist/chartjs-chart-financial.min.js"></script> -->
+</head>
+<body>
+    <div class="container">
+        <h1>Bitcoin (BTCUSDT) Analiz Paneli</h1>
+
+        <div class="info-card">
+            <p>Güncel Fiyat: <span id="current-price">-</span> $</p>
+            <p>Son RSI: <span id="current-rsi">-</span></p>
+            <div class="checkbox-container">
+                <input type="checkbox" id="toggleRSI" checked>
+                <label for="toggleRSI">RSI Göster</label>
+            </div>
+        </div>
+
+        <div class="chart-section">
+            <h2>Fiyat ve RSI Grafiği</h2>
+            <canvas id="combinedChart"></canvas> <!-- Tek bir canvas kullanacağız -->
+        </div>
+
+        <!-- Eski RSI grafiği bölümünü kaldırdık -->
+        <!-- <div class="chart-section">
+            <h2>RSI Grafiği</h2>
+            <canvas id="rsiChart"></canvas>
+        </div> -->
+    </div>
+
+    <!-- Kendi JavaScript dosyamızı en sona ekliyoruz -->
+    <script src="script.js"></script>
+</body>
+</html>
