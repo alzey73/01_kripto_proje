@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="style.css">
     <!-- Chart.js kütüphanesini dahil ediyoruz -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-    <!-- Chart.js Candlestick eklentisi (şimdilik kullanmayacağız ama gelecekte lazım olabilir) -->
+    <!-- Chart.js Candlestick eklentisi (gelecekte mum grafik için lazım olabilir) -->
     <!-- <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@0.1.0/dist/chartjs-chart-financial.min.js"></script> -->
 </head>
 <body>
@@ -17,22 +17,47 @@
         <div class="info-card">
             <p>Güncel Fiyat: <span id="current-price">-</span> $</p>
             <p>Son RSI: <span id="current-rsi">-</span></p>
-            <div class="checkbox-container">
-                <input type="checkbox" id="toggleRSI" checked>
-                <label for="toggleRSI">RSI Göster</label>
+            
+            <div class="indicator-toggles">
+                <div class="checkbox-container">
+                    <input type="checkbox" id="toggleRSI" checked>
+                    <label for="toggleRSI">RSI</label>
+                </div>
+                <div class="checkbox-container">
+                    <input type="checkbox" id="toggleSMA" checked>
+                    <label for="toggleSMA">SMA</label>
+                </div>
+                <div class="checkbox-container">
+                    <input type="checkbox" id="toggleEMA" checked>
+                    <label for="toggleEMA">EMA</label>
+                </div>
+                <div class="checkbox-container">
+                    <input type="checkbox" id="toggleMACD">
+                    <label for="toggleMACD">MACD</label>
+                </div>
+                <div class="checkbox-container">
+                    <input type="checkbox" id="toggleBB">
+                    <label for="toggleBB">BB</label>
+                </div>
+                <div class="checkbox-container">
+                    <input type="checkbox" id="toggleStoch">
+                    <label for="toggleStoch">Stoch</label>
+                </div>
+                <div class="checkbox-container">
+                    <input type="checkbox" id="toggleATR">
+                    <label for="toggleATR">ATR</label>
+                </div>
+                <div class="checkbox-container">
+                    <input type="checkbox" id="toggleOBV">
+                    <label for="toggleOBV">OBV</label>
+                </div>
             </div>
         </div>
 
         <div class="chart-section">
-            <h2>Fiyat ve RSI Grafiği</h2>
-            <canvas id="combinedChart"></canvas> <!-- Tek bir canvas kullanacağız -->
+            <h2>Fiyat ve İndikatör Grafiği</h2>
+            <canvas id="combinedChart"></canvas>
         </div>
-
-        <!-- Eski RSI grafiği bölümünü kaldırdık -->
-        <!-- <div class="chart-section">
-            <h2>RSI Grafiği</h2>
-            <canvas id="rsiChart"></canvas>
-        </div> -->
     </div>
 
     <!-- Kendi JavaScript dosyamızı en sona ekliyoruz -->

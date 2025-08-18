@@ -101,3 +101,48 @@ canvas {
     font-size: 1.1em;
     color: #e0e0e0;
 }
+
+.indicator-toggles {
+    display: flex;
+    flex-wrap: wrap; /* Kutucuklar sığmazsa alt satıra geçsin */
+    justify-content: center;
+    gap: 15px; /* Kutucuklar arası boşluk */
+    margin-top: 20px;
+    padding: 10px;
+    background-color: #0d2747; /* Hafif koyu arka plan */
+    border-radius: 8px;
+}
+
+.checkbox-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    /* margin-top: 10px; */ /* Bu satırı kaldırabiliriz, indicator-toggles gap'i yönetecek */
+    /* justify-content: center; */ /* Bu satırı kaldırabiliriz, indicator-toggles justify-content yönetecek */
+}
+
+.checkbox-container input[type="checkbox"] {
+    width: 18px; /* Daha küçük checkbox */
+    height: 18px;
+    accent-color: #e94560; 
+    cursor: pointer;
+}
+
+.checkbox-container label {
+    font-size: 0.95em; /* Biraz daha küçük yazı */
+    color: #e0e0e0;
+    cursor: pointer;
+}
+
+/* Mobil cihazlar için responsive ayarlar */
+@media (max-width: 768px) {
+    /* ... (mevcut mobil ayarlar) ... */
+    .indicator-toggles {
+        flex-direction: column; /* Mobil görünümde alt alta gelsinler */
+        align-items: flex-start; /* Sola hizala */
+        gap: 8px;
+    }
+
+}
+
+
