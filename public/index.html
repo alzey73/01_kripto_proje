@@ -58,6 +58,25 @@
             <h2>Fiyat ve İndikatör Grafiği</h2>
             <canvas id="combinedChart"></canvas>
         </div>
+
+        <div class="comments-section">
+            <h2>İndikatör Yorumları</h2>
+            <div id="indicator-comments">
+                <p>Veriler yükleniyor...</p>
+            </div>
+        </div>
+
+        <!-- YENİ EKLENEN KISIM: Tahmin ve Doğruluk Bölümü -->
+        <div class="prediction-section">
+            <h2>Sonraki Mum Tahmini</h2>
+            <div id="prediction-output">
+                <p>Tahmin: <span id="current-prediction">-</span></p>
+                <p>Önceki Tahmin Sonucu: <span id="last-prediction-result">-</span></p>
+                <p>Doğruluk Oranı: <span id="accuracy-rate">-</span></p>
+            </div>
+        </div>
+        <!-- YENİ EKLENEN KISIM SONU -->
+
     </div>
 
     <!-- Kendi JavaScript dosyamızı en sona ekliyoruz -->

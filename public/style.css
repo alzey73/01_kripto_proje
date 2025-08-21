@@ -145,4 +145,59 @@ canvas {
 
 }
 
+.comments-section {
+    background-color: #0f3460; /* Koyu mavi */
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 30px;
+    text-align: left; /* Yorumlar sola hizalı olsun */
+}
+
+.comments-section h2 {
+    text-align: center; /* Başlık ortalı olsun */
+    margin-bottom: 15px;
+}
+
+#indicator-comments p {
+    background-color: #1a1a2e; /* Yorum kutucuklarının arka planı */
+    padding: 10px 15px;
+    border-left: 4px solid #e94560; /* Sol tarafta renkli çizgi */
+    border-radius: 6px;
+    margin-bottom: 10px;
+    font-size: 0.95em;
+    line-height: 1.4;
+    color: #e0e0e0;
+}
+
+#indicator-comments p strong {
+    color: #53bf9d; /* İndikatör adları için vurgu rengi */
+}
+.prediction-section {
+    background-color: #0f3460; /* Koyu mavi */
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 30px;
+    text-align: left; /* Yorumlar sola hizalı olsun */
+}
+
+.prediction-section h2 {
+    text-align: center; /* Başlık ortalı olsun */
+    margin-bottom: 15px;
+}
+
+#prediction-output p {
+    background-color: #1a1a2e; /* Kutu arka planı */
+    padding: 10px 15px;
+    border-left: 4px solid #53bf9d; /* Yeşil çizgi */
+    border-radius: 6px;
+    margin-bottom: 10px;
+    font-size: 1em;
+    line-height: 1.4;
+    color: #e0e0e0;
+}
+
+#prediction-output span {
+    font-weight: bold;
+    color: #e94560; /* Vurgu rengi */
+}
 
