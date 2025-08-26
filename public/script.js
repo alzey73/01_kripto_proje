@@ -3,6 +3,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // HTML elementlerine referansları al
     const currentPriceSpan = document.getElementById('current-price');
     const currentRsiSpan = document.getElementById('current-rsi');
+    const combinedChartCtx = document.getElementById('combinedChart').getContext('2d'); 
+
+    // İndikatör onay kutularına referansları al
     const toggleRSI = document.getElementById('toggleRSI');
     const toggleSMA = document.getElementById('toggleSMA');
     const toggleEMA = document.getElementById('toggleEMA');
@@ -11,15 +14,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const toggleStoch = document.getElementById('toggleStoch');
     const toggleATR = document.getElementById('toggleATR');
     const toggleOBV = document.getElementById('toggleOBV');
-    const combinedChartCtx = document.getElementById('combinedChart').getContext('2d');
     const indicatorCommentsDiv = document.getElementById('indicator-comments');
+
     // Yeni tahmin elementleri
-    const currentPredictionSpan = document.getElementById('current-prediction');
+    const mlPredictionSpan = document.getElementById('ml-prediction'); 
     const lastPredictionResultSpan = document.getElementById('last-prediction-result');
     const accuracyRateSpan = document.getElementById('accuracy-rate');
 
     let combinedChart; 
 
+    // İndikatörlerin varsayılan renkleri
     const indicatorColors = {
         rsi: '#ffc107', 
         sma: '#17a2b8', 
@@ -39,11 +43,10 @@ document.addEventListener('DOMContentLoaded', () => {
         sellLine: 'rgba(255, 0, 0, 0.7)' 
     };
 
-    // --- Yorum Üretme Fonksiyonu (Önceki Adımdan) ---
+    // --- Yorum Üretme Fonksiyonu ---
     function generateIndicatorComments(data) {
         const comments = [];
         const currentPrice = data.currentPrice;
-        // const closes = data.klines.map(k => k.close); // Kapanış fiyatları (şimdilik kullanılmıyor, sadece son fiyat)
 
         // RSI Yorumu
         if (data.rsi !== null) {
@@ -137,9 +140,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     comments.push(`Fiyat bantlar içinde hareket ediyor. Mevcut trend devam ediyor.`);
                 }
 
-                if (bandWidth < (data.currentPrice * 0.01)) { 
+                if (bandWidth < (currentPrice * 0.01)) { 
                     comments.push(`Bantlar daralıyor. Volatilite düşüyor, büyük bir fiyat hareketine hazırlık olabilir.`);
-                } else if (bandWidth > (data.currentPrice * 0.05)) { 
+                } else if (bandWidth > (currentPrice * 0.05)) { 
                     comments.push(`Bantlar genişliyor. Volatilite artıyor, trendin güçlendiğini gösterebilir.`);
                 }
             }
@@ -171,7 +174,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const lastATR = data.atr[data.atr.length - 1];
             if (lastATR !== null) {
                 comments.push(`<strong>ATR (${lastATR.toFixed(2)}):</strong>`);
-                if (lastATR > (data.currentPrice * 0.005)) { 
+                if (lastATR > (currentPrice * 0.005)) { 
                     comments.push(`Yüksek volatilite. Fiyat hareketleri büyük olabilir.`);
                 } else {
                     comments.push(`Düşük volatilite. Piyasa sakinleşiyor olabilir.`);
@@ -212,70 +215,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- YENİ EKLENEN FONKSİYON: Sonraki Mum Yönünü Tahmin Etme ---
-    function predictNextCandleDirection(data) {
-        const rsi = data.rsi;
-        const lastMACD = data.macd.macdLine ? data.macd.macdLine[data.macd.macdLine.length - 1] : null;
-        const lastSignal = data.macd.signalLine ? data.macd.signalLine[data.macd.signalLine.length - 1] : null;
-        const currentPrice = data.currentPrice;
-        const closes = data.klines.map(k => k.close);
-        const prevClose = closes.length > 1 ? closes[closes.length - 2] : null;
-
-        let prediction = 'YATAY'; // Varsayılan tahmin
-
-        // Yükseliş sinyalleri
-        let bullishSignals = 0;
-        // Düşüş sinyalleri
-        let bearishSignals = 0;
-
-        // RSI Kontrolü
-        if (rsi !== null) {
-            if (rsi < 30) bullishSignals++; // Aşırı satım
-            if (rsi > 70) bearishSignals++; // Aşırı alım
-        }
-
-        // MACD Kontrolü (Kesişim)
-        if (lastMACD !== null && lastSignal !== null && prevClose !== null) {
-            const prevMACD = data.macd.macdLine[data.macd.macdLine.length - 2];
-            const prevSignal = data.macd.signalLine[data.macd.signalLine.length - 2];
-
-            if (lastMACD > lastSignal && prevMACD <= prevSignal) { // Bullish Crossover
-                bullishSignals++;
-            } else if (lastMACD < lastSignal && prevMACD >= prevSignal) { // Bearish Crossover
-                bearishSignals++;
-            }
-        }
-
-        // Fiyatın hareketli ortalamalarla ilişkisi (SMA/EMA)
-        if (data.sma && data.sma.length > 0 && currentPrice > data.sma[data.sma.length - 1]) {
-            bullishSignals++;
-        } else if (data.sma && data.sma.length > 0 && currentPrice < data.sma[data.sma.length - 1]) {
-            bearishSignals++;
-        }
-        if (data.ema && data.ema.length > 0 && currentPrice > data.ema[data.ema.length - 1]) {
-            bullishSignals++;
-        } else if (data.ema && data.ema.length > 0 && currentPrice < data.ema[data.ema.length - 1]) {
-            bearishSignals++;
-        }
-
-        // Basit bir kural: Daha fazla yükseliş sinyali varsa YUKARI, düşüş sinyali varsa AŞAĞI
-        if (bullishSignals > bearishSignals && bullishSignals > 0) {
-            prediction = 'YUKARI';
-        } else if (bearishSignals > bullishSignals && bearishSignals > 0) {
-            prediction = 'AŞAĞI';
-        } else {
-            prediction = 'YATAY';
-        }
-
-        return prediction;
-    }
-
-    // --- YENİ EKLENEN FONKSİYON: Tahmin Durumunu Okuma/Kaydetme (localStorage) ---
+    // --- Tahmin Durumunu Okuma/Kaydetme (localStorage) ---
     function loadPredictionState() {
         const state = localStorage.getItem('predictionState');
         return state ? JSON.parse(state) : {
-            lastPrediction: null, // Önceki tahmin (YUKARI/AŞAĞI/YATAY)
-            predictedFromPrice: null, // Önceki tahminin yapıldığı anki kapanış fiyatı
+            lastPrediction: null, 
+            predictedFromPrice: null, 
             totalPredictions: 0,
             correctPredictions: 0
         };
@@ -285,28 +230,35 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem('predictionState', JSON.stringify(state));
     }
 
-    // --- YENİ EKLENEN FONKSİYON: Tahmini Doğrulama ve İstatistikleri Güncelleme ---
+    // --- Tahmini Doğrulama ve İstatistikleri Güncelleme ---
     function validateAndPredict(data) {
         let state = loadPredictionState();
         const currentPrice = data.currentPrice;
-        const lastCandleClose = data.klines.length > 1 ? data.klines[data.klines.length - 2].close : null; // Yeni gelen mumdan önceki mumun kapanışı
+        // Son gelen mumdan önceki mumun kapanışı (yani tahmin ettiğimiz mumun gerçekleşen kapanışı)
+        const actualClosedCandle = data.klines.length > 1 ? data.klines[data.klines.length - 2] : null; 
+        const actualClosedPrice = actualClosedCandle ? actualClosedCandle.close : null;
 
         let lastPredictionResultText = '-';
 
         // Önceki tahmini doğrula
-        if (state.lastPrediction && state.predictedFromPrice !== null && lastCandleClose !== null) {
-            state.totalPredictions++; // Toplam tahmin sayısını artır
+        if (state.lastPrediction && state.predictedFromPrice !== null && actualClosedPrice !== null) {
+            state.totalPredictions++; 
 
-            const actualDirection = (lastCandleClose > state.predictedFromPrice) ? 'YUKARI' :
-                                    (lastCandleClose < state.predictedFromPrice) ? 'AŞAĞI' : 'YATAY';
+            // Gerçek yönü belirle
+            const priceChangeForValidation = (actualClosedPrice - state.predictedFromPrice) / state.predictedFromPrice;
+            const MIN_CHANGE_PERCENT_FOR_DIRECTION_FRONTEND = 0.0005; // Backend ile aynı eşik
+
+            const actualDirection = (priceChangeForValidation > MIN_CHANGE_PERCENT_FOR_DIRECTION_FRONTEND) ? 'YUKARI' :
+                                    (priceChangeForValidation < -MIN_CHANGE_PERCENT_FOR_DIRECTION_FRONTEND) ? 'AŞAĞI' : 'YATAY';
             
             let isCorrect = false;
+            // ML modelimiz YATAY tahmin etmediği için, sadece YUKARI/AŞAĞI tahminlerini doğrularız
             if (state.lastPrediction === 'YUKARI' && actualDirection === 'YUKARI') {
                 isCorrect = true;
             } else if (state.lastPrediction === 'AŞAĞI' && actualDirection === 'AŞAĞI') {
                 isCorrect = true;
-            } else if (state.lastPrediction === 'YATAY' && actualDirection === 'YATAY') { // Yatay tahminin doğruluğu
-                isCorrect = true;
+            } else if (state.lastPrediction === 'YATAY' && actualDirection === 'YATAY') { 
+                isCorrect = true; 
             }
 
             if (isCorrect) {
@@ -318,21 +270,20 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log(`Tahmin Doğrulama: ${lastPredictionResultText}`);
         }
 
-        // Yeni tahmin yap
-        const newPrediction = predictNextCandleDirection(data);
+        // Yeni tahmin yap (ML modelinden gelen tahmin)
+        const newPrediction = data.nextCandlePrediction || 'BELİRSİZ'; 
+
         state.lastPrediction = newPrediction;
         state.predictedFromPrice = currentPrice; // Yeni tahminin yapıldığı anki fiyat
 
         savePredictionState(state); // Durumu kaydet
 
         // UI'yı güncelle
-        currentPredictionSpan.textContent = newPrediction;
+        mlPredictionSpan.textContent = newPrediction;
         lastPredictionResultSpan.textContent = lastPredictionResultText;
         accuracyRateSpan.textContent = state.totalPredictions > 0 ? 
             `${((state.correctPredictions / state.totalPredictions) * 100).toFixed(2)}% (${state.correctPredictions}/${state.totalPredictions})` : '0%';
     }
-    // --- YENİ EKLENEN FONKSİYONLAR SONU ---
-
 
     async function fetchData() {
         try {
@@ -353,10 +304,9 @@ document.addEventListener('DOMContentLoaded', () => {
             // Yorumları Oluştur ve Göster
             generateIndicatorComments(data);
 
-            // --- YENİ EKLENEN KISIM: Tahmin Yap ve Doğrula ---
+            // Tahmin Yap ve Doğrula (ML modelinden gelen tahmin ile)
             validateAndPredict(data);
-            // --- YENİ EKLENEN KISIM SONU ---
-
+            
             // Grafik verilerini hazırla
             if (data.klines && data.klines.length > 0) {
                 const labels = data.klines.map(k => new Date(k.time).toLocaleTimeString()); 
