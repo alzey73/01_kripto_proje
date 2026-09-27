@@ -1,4 +1,9 @@
 node_modules/
 klines_cache.json
 *.csv
-*.json
+__pycache__/
+.pytest_cache/
+
+# Araştırma verisi ve büyük çıktılar (raporların .md dosyaları takip edilir)
+data/
+reports/**/*.parquet

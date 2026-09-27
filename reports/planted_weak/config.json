@@ -1,0 +1,46 @@
+{
+  "interval": "1h",
+  "start": "2021-01",
+  "data_dir": "data",
+  "quote_asset": "USDT",
+  "min_median_quote_volume": 0,
+  "min_history_bars": 2880,
+  "side": "long",
+  "tp_mult": 1.5,
+  "sl_mult": 1.5,
+  "horizon": 24,
+  "fee_per_side": 0.001,
+  "slippage_per_side": 0.0005,
+  "min_train_months": 12,
+  "test_months": 3,
+  "calib_months": 3,
+  "lockbox_months": 6,
+  "train_sample_frac": 1.0,
+  "report_thresholds": [
+    0.55,
+    0.6,
+    0.65,
+    0.7,
+    0.75,
+    0.8
+  ],
+  "top_quantiles": [
+    0.01,
+    0.005,
+    0.001
+  ],
+  "n_null_trials": 1000,
+  "lgbm_params": {
+    "n_estimators": 400,
+    "learning_rate": 0.03,
+    "num_leaves": 31,
+    "min_child_samples": 500,
+    "subsample": 0.7,
+    "subsample_freq": 1,
+    "colsample_bytree": 0.7,
+    "reg_lambda": 5.0,
+    "verbose": -1,
+    "n_jobs": -1
+  },
+  "seed": 42
+}
