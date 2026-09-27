@@ -57,3 +57,30 @@ def test_labels_nan_at_end():
     cfg = Config()
     out = triple_barrier(df, pd.Series(0.01, index=df.index), 1, 1, cfg.horizon, 0.0)
     assert out["label"].iloc[-(cfg.horizon + 1):].isna().all()
+
+
+def test_weekly_portfolio_costs_and_selection():
+    from research import weekly as w
+    idx = pd.date_range("2024-01-01", periods=21, freq="D", tz="UTC")  # 3 pazartesi: 1, 8, 15 Ocak
+    cols = ["A", "B", "C"]
+    close = pd.DataFrame({"A": np.linspace(100, 200, 21), "B": 100.0, "C": np.linspace(100, 50, 21)}, index=idx)
+    d = {"open": close.shift(1).fillna(100.0), "close": close}
+    mondays = pd.DatetimeIndex([idx[7]])  # 8 Ocak
+    rets = w.weekly_returns(d, mondays)
+    elig = pd.DataFrame(True, index=idx, columns=cols)
+    score = close / close.shift(5) - 1
+    r = w.run_portfolio(score, elig, rets, k=1, regime=None)
+    exp = d["open"].loc[idx[14], "A"] / d["open"].loc[idx[7], "A"] - 1
+    assert np.isclose(r.iloc[0], exp - w.COST_PER_SIDE)  # en güçlü A seçildi, giriş maliyeti 1 taraf
+    cash = w.run_portfolio(score, elig, rets, k=1, regime=pd.Series(False, index=idx))
+    assert cash.iloc[0] == 0.0
+
+
+def test_weekly_delisted_exits_at_last_close():
+    from research import weekly as w
+    idx = pd.date_range("2024-01-01", periods=15, freq="D", tz="UTC")
+    close = pd.DataFrame({"X": [100.0] * 10 + [np.nan] * 5}, index=idx)
+    close.iloc[9, 0] = 40.0
+    d = {"open": close.copy(), "close": close}
+    r = w.weekly_returns(d, pd.DatetimeIndex([idx[7]]))
+    assert np.isclose(r.iloc[0]["X"], 40 / 100 - 1)
