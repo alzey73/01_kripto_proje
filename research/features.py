@@ -128,7 +128,7 @@ def add_market_features(panel: pd.DataFrame, btc_symbol: str = "BTCUSDT") -> pd.
     return panel
 
 
-NON_FEATURES = {"open_time", "symbol", "label", "net_ret", "exit_offset", "fwd_ret", "excess_ret",
+NON_FEATURES = {"open_time", "symbol", "label", "net_ret", "exit_offset", "fwd_ret", "excess_ret", "hedged_ret",
                 "mkt_n_symbols"}  # mkt_n_symbols zamanla arttığı için dönem göstergesi gibi davranıyor
 
 

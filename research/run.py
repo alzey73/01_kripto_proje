@@ -27,14 +27,14 @@ def _fmt_rules(t: pd.DataFrame) -> str:
     for c in PCT_COLS:
         if c in t:
             t[c] = (t[c] * 100).map(lambda x: f"{x:.2f}%" if pd.notna(x) else "-")
-    for c in ("gunluk_sinyal", "kar_faktoru"):
+    for c in ("gunluk_sinyal", "kar_faktoru", "oynaklik_orani"):
         if c in t:
             t[c] = t[c].map(lambda x: f"{x:.2f}" if pd.notna(x) else "-")
-    for c in ("binom_p", "rastgele_p"):
+    for c in ("binom_p", "rastgele_p", "oynaklik_esli_p"):
         if c in t:
             t[c] = t[c].map(lambda x: f"{x:.4f}" if pd.notna(x) else "-")
     cols = ["kural", "sinyal", "gunluk_sinyal", "isabet", "isabet_wilson_alt", "taban_oran",
-            "ort_net_getiri", "getiri_ci_alt", "ort_fazla_getiri", "kar_faktoru", "pozitif_katman_orani", "rastgele_p", "KANIT"]
+            "ort_net_getiri", "getiri_ci_alt", "ort_fazla_getiri", "oynaklik_orani", "oynaklik_esli_p", "kar_faktoru", "pozitif_katman_orani", "rastgele_p", "KANIT"]
     return t[[c for c in cols if c in t]].to_markdown(index=False)
 
 
@@ -49,7 +49,7 @@ def write_report(res: dict, imp: pd.DataFrame, cfg: Config, title: str, out_dir:
         f"# {title}",
         f"_Oluşturma: {datetime.now():%Y-%m-%d %H:%M}_  ",
         f"Etiket **{cfg.label_mode}**, kalibrasyon **{cfg.calibration}**, aralık **{cfg.interval}**, yön **{cfg.side}**, hedef **{cfg.tp_mult}×ATR**, stop **{cfg.sl_mult}×ATR**, "
-        f"süre **{cfg.horizon} mum**, gidiş-dönüş maliyet **%{cfg.round_trip_cost*100:.2f}**  ",
+        f"süre **{cfg.horizon} mum**, getiri **{cfg.pnl}**, maliyet **%{(cfg.hedged_cost if cfg.pnl == 'hedged' else cfg.round_trip_cost)*100:.2f}**  ",
         f"Değerlendirilen dönem: **{'LOCKBOX DAHİL (nihai test)' if lockbox else 'yalnızca geliştirme dönemi'}**",
         "",
         "## Sonuç",
@@ -74,7 +74,9 @@ def write_report(res: dict, imp: pd.DataFrame, cfg: Config, title: str, out_dir:
         _fmt_rules(rules),
         "",
         f"KANIT = sinyal ≥ {MIN_SIGNALS}, isabet alt sınırı > taban oran, rastgele seçim p < 0.01, "
-        "ortalama getiri ve bootstrap alt sınırı > 0, katmanların ≥ %70'i pozitif.",
+        "ortalama getiri ve bootstrap alt sınırı > 0, katmanların ≥ %70'i pozitif.  \n"
+        "Risk kontrolü (KANIT'a dahil değil): `oynaklik_esli_p` < 0.01 ise kazanç sadece oynak coin seçmekten gelmiyor; "
+        "`oynaklik_orani` seçilen coinlerin ortalama oynaklığının evrene oranı.",
         "",
         "## Kalibrasyon (model %X dediğinde gerçekte ne oldu?)",
         res["calibration"].assign(tahmin=lambda d: (d.tahmin * 100).round(1), gercek=lambda d: (d.gercek * 100).round(1))
@@ -104,6 +106,7 @@ def main():
     ap.add_argument("--synthetic", choices=["null", "planted"])
     ap.add_argument("--include-lockbox", action="store_true")
     ap.add_argument("--interval", default=cfg.interval)
+    ap.add_argument("--pnl", default=cfg.pnl, choices=["spot", "hedged"])
     ap.add_argument("--label-mode", default=cfg.label_mode, choices=["relative", "absolute"])
     ap.add_argument("--side", default=cfg.side, choices=["long", "short"])
     ap.add_argument("--tp", type=float, default=cfg.tp_mult)
@@ -117,6 +120,7 @@ def main():
 
     cfg.interval, cfg.side, cfg.tp_mult, cfg.sl_mult = args.interval, args.side, args.tp, args.sl
     cfg.horizon, cfg.train_sample_frac, cfg.label_mode = args.horizon, args.sample, args.label_mode
+    cfg.pnl = args.pnl
 
     if args.synthetic:
         frames = synthetic_frames(planted_edge=args.edge if args.synthetic == "planted" else 0.0)

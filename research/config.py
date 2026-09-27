@@ -23,6 +23,9 @@ class Config:
     horizon: int = 24                    # Maksimum bekleme süresi (mum)
     fee_per_side: float = 0.001          # Binance spot komisyonu (%0.1)
     slippage_per_side: float = 0.0005    # Kayma tahmini
+    futures_fee_per_side: float = 0.0005  # Binance vadeli taker komisyonu (%0.05)
+    # Getiri ölçümü: "spot" = sadece long (triple barrier), "hedged" = coin long + BTC short, horizon kadar tutulur
+    pnl: str = "spot"
 
     # --- Walk-forward ---
     min_train_months: int = 12           # İlk eğitim penceresi
@@ -49,6 +52,11 @@ class Config:
     @property
     def round_trip_cost(self) -> float:
         return 2 * (self.fee_per_side + self.slippage_per_side)
+
+    @property
+    def hedged_cost(self) -> float:
+        """Piyasa nötr işlem: 2 bacak x (giriş + çıkış) = 4 işlem, vadeli komisyon + kayma. Fonlama dahil değil."""
+        return 4 * (self.futures_fee_per_side + self.slippage_per_side)
 
     def to_dict(self):
         return asdict(self)

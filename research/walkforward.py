@@ -86,7 +86,8 @@ def run_walkforward(panel: pd.DataFrame, cfg: Config, include_lockbox: bool = Fa
         calibrate = fit_calibrator(raw_cal, calib["label"].to_numpy(), cfg.calibration)
         raw_test = model.predict_proba(test[feats])[:, 1]
 
-        keep = ["open_time", "symbol", "label", "net_ret", "exit_offset", "excess_ret", "btc_dist_ema200"]
+        keep = ["open_time", "symbol", "label", "net_ret", "exit_offset", "excess_ret", "hedged_ret",
+                "btc_dist_ema200", "vol_168"]
         out = test[[c for c in keep if c in test]].copy()
         out["raw"] = raw_test
         out["prob"] = calibrate(raw_test)

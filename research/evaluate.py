@@ -59,6 +59,30 @@ def null_pvalue(pool: pd.DataFrame, n: int, observed_mean: float, trials: int, s
     return float((np.sum(means >= observed_mean) + 1) / (trials + 1))
 
 
+def null_pvalue_vol_matched(pool: pd.DataFrame, sig: pd.DataFrame, observed_mean: float, trials: int,
+                            seed: int = 1) -> float:
+    """Risk kontrolü: rastgele sinyaller, seçilen sinyallerle AYNI oynaklık dağılımından çekilir.
+    Model sadece oynak coinleri seçerek kazanıyorsa bu test onu yakalar."""
+    if "vol_168" not in pool or sig["vol_168"].isna().all():
+        return np.nan
+    edges = np.nanquantile(pool["vol_168"], np.linspace(0, 1, 11))
+    edges[-1] += 1e-9
+    pb = np.clip(np.searchsorted(edges, pool["vol_168"].fillna(edges[0]), side="right") - 1, 0, 9)
+    sb = np.clip(np.searchsorted(edges, sig["vol_168"].fillna(edges[0]), side="right") - 1, 0, 9)
+    r = pool["net_ret"].to_numpy()
+    groups = {b: r[pb == b] for b in range(10)}
+    counts = np.bincount(sb, minlength=10)
+    rng = np.random.default_rng(seed)
+    means = np.empty(trials)
+    for t in range(trials):
+        tot = 0.0
+        for b in np.nonzero(counts)[0]:
+            g = groups[b]
+            tot += g[rng.integers(0, len(g), counts[b])].sum() if len(g) else 0.0
+        means[t] = tot / counts.sum()
+    return float((np.sum(means >= observed_mean) + 1) / (trials + 1))
+
+
 def evaluate_rule(oos: pd.DataFrame, mask: pd.Series, name: str, bar: pd.Timedelta,
                   n_null: int, base_rate: float) -> dict:
     sig = dedupe_signals(oos[mask], bar)
@@ -89,6 +113,8 @@ def evaluate_rule(oos: pd.DataFrame, mask: pd.Series, name: str, bar: pd.Timedel
         "pozitif_katman_orani": (fold_means > 0).mean(),
         "katman_sayisi": len(fold_means),
         "rastgele_p": null_pvalue(oos, n, sig["net_ret"].mean(), n_null) if n <= len(oos) else np.nan,
+        "oynaklik_esli_p": null_pvalue_vol_matched(oos, sig, sig["net_ret"].mean(), min(n_null, 300)),
+        "oynaklik_orani": sig["vol_168"].mean() / oos["vol_168"].mean() if "vol_168" in sig else np.nan,
     })
     row["KANIT"] = bool(
         n >= MIN_SIGNALS
@@ -134,6 +160,10 @@ def cap_per_bar(oos: pd.DataFrame, mask: pd.Series, k: int) -> pd.Series:
 
 def evaluate_all(oos: pd.DataFrame, cfg) -> dict:
     bar = pd.Timedelta(cfg.interval)
+    if cfg.pnl == "hedged":  # piyasa nötr: getiri hedged_ret, pozisyon sabit horizon kadar tutulur
+        oos = oos[oos["hedged_ret"].notna()].copy()
+        oos["net_ret"] = oos["hedged_ret"]
+        oos["exit_offset"] = cfg.horizon - 1
     base = oos["label"].mean()
     base_rules = [(f"olasilik>={th:.2f}", oos["prob"] >= th) for th in cfg.report_thresholds]
     base_rules += [(f"ust_%{q*100:g}", oos[f"top_{q}"]) for q in cfg.top_quantiles]

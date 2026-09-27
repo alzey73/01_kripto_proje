@@ -55,6 +55,11 @@ def add_relative_label(panel: pd.DataFrame, cfg: Config) -> pd.DataFrame:
     sign = 1.0 if cfg.side == "long" else -1.0
     panel["label"] = (sign * excess > 0).astype("float32")
     panel["excess_ret"] = (sign * excess - cfg.round_trip_cost).astype("float32")
+    # İşlem yapılabilir piyasa nötr getiri: coin long + aynı tutarda BTC short (short modda tersi)
+    btc = panel.loc[panel["symbol"] == "BTCUSDT"].set_index("open_time")["fwd_ret"]
+    btc_simple = np.expm1(panel["open_time"].map(btc))
+    panel["hedged_ret"] = (sign * (np.expm1(panel["fwd_ret"]) - btc_simple) - cfg.hedged_cost).astype("float32")
+    panel.loc[panel["symbol"] == "BTCUSDT", "hedged_ret"] = np.nan  # BTC'yi BTC ile hedge etmek anlamsız
     return panel
 
 
