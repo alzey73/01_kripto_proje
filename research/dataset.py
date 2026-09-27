@@ -18,6 +18,8 @@ def build_symbol_frame(sym: str, raw: pd.DataFrame, cfg: Config) -> pd.DataFrame
     lab = triple_barrier(raw, atr_pct(raw, 14), cfg.tp_mult, cfg.sl_mult, cfg.horizon,
                          cfg.round_trip_cost, cfg.side)
     out = pd.concat([raw[["open_time"]], feats, lab], axis=1)
+    # t+1 açılışından t+horizon kapanışına log getiri (relative etiket için)
+    out["fwd_ret"] = np.log(raw["close"].shift(-cfg.horizon) / raw["open"].shift(-1)).astype("float32")
     out["symbol"] = sym
 
     # Uygunluk t anında, geçmişe bakarak belirlenir (evren seçiminde geleceğe bakış yok)
@@ -39,7 +41,21 @@ def load_panel(cfg: Config, symbols: list[str] | None = None, raw_frames: dict |
     parts = [p for s, r in raw_frames.items() if (p := build_symbol_frame(s, r, cfg)) is not None]
     panel = pd.concat(parts, ignore_index=True)
     panel = add_market_features(panel)
+    if cfg.label_mode == "relative":
+        panel = add_relative_label(panel, cfg)
     return panel.sort_values(["open_time", "symbol"]).reset_index(drop=True)
+
+
+def add_relative_label(panel: pd.DataFrame, cfg: Config) -> pd.DataFrame:
+    """label=1: coin, aynı saatteki uygun coinlerin ortalamasından daha iyi gitti.
+    excess_ret: piyasaya göre fazla getiri (maliyet düşülmüş) - piyasa nötr bakış."""
+    panel = panel[panel["fwd_ret"].notna()].copy()
+    mkt = panel.groupby("open_time")["fwd_ret"].transform("mean")
+    excess = panel["fwd_ret"] - mkt
+    sign = 1.0 if cfg.side == "long" else -1.0
+    panel["label"] = (sign * excess > 0).astype("float32")
+    panel["excess_ret"] = (sign * excess - cfg.round_trip_cost).astype("float32")
+    return panel
 
 
 def synthetic_frames(n_symbols: int = 30, n_bars: int = 24 * 365 * 3, planted_edge: float = 0.0,

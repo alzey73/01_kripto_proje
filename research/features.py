@@ -128,6 +128,15 @@ def add_market_features(panel: pd.DataFrame, btc_symbol: str = "BTCUSDT") -> pd.
     return panel
 
 
-def feature_columns(panel: pd.DataFrame) -> list[str]:
-    exclude = {"open_time", "symbol", "label", "net_ret", "exit_offset", "tp_pct", "sl_pct", "entry"}
-    return [c for c in panel.columns if c not in exclude]
+NON_FEATURES = {"open_time", "symbol", "label", "net_ret", "exit_offset", "fwd_ret", "excess_ret",
+                "mkt_n_symbols"}  # mkt_n_symbols zamanla arttığı için dönem göstergesi gibi davranıyor
+
+
+def is_market_feature(col: str) -> bool:
+    """Aynı saatte tüm coinlerde aynı olan özellikler (coinler arasında ayrım yapamaz)."""
+    return col.startswith(("mkt_", "btc_")) or col in ("hour", "dow")
+
+
+def feature_columns(panel: pd.DataFrame, drop_market: bool = False) -> list[str]:
+    return [c for c in panel.columns
+            if c not in NON_FEATURES and not (drop_market and is_market_feature(c))]

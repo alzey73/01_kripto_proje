@@ -80,6 +80,7 @@ def evaluate_rule(oos: pd.DataFrame, mask: pd.Series, name: str, bar: pd.Timedel
         "taban_oran": base_rate,
         "binom_p": binomtest(k, n, base_rate, alternative="greater").pvalue,
         "ort_net_getiri": sig["net_ret"].mean(),
+        "ort_fazla_getiri": sig["excess_ret"].mean() if "excess_ret" in sig else np.nan,
         "medyan_net_getiri": sig["net_ret"].median(),
         "getiri_ci_alt": boot_lo,
         "getiri_ci_ust": boot_hi,
@@ -122,11 +123,27 @@ def global_metrics(oos: pd.DataFrame) -> dict:
     }
 
 
+def cap_per_bar(oos: pd.DataFrame, mask: pd.Series, k: int) -> pd.Series:
+    """Aynı saatte en fazla k sinyal: en yüksek olasılıklılar kalır (ilişkili toplu bahisleri önler)."""
+    if k <= 0:
+        return mask
+    sel = oos[mask]
+    top = sel.sort_values("prob", ascending=False).groupby("open_time").head(k).index
+    return oos.index.isin(top)
+
+
 def evaluate_all(oos: pd.DataFrame, cfg) -> dict:
     bar = pd.Timedelta(cfg.interval)
     base = oos["label"].mean()
-    rules = [(f"olasilik>={th:.2f}", oos["prob"] >= th) for th in cfg.report_thresholds]
-    rules += [(f"ust_%{q*100:g}", oos[f"top_{q}"]) for q in cfg.top_quantiles]
+    base_rules = [(f"olasilik>={th:.2f}", oos["prob"] >= th) for th in cfg.report_thresholds]
+    base_rules += [(f"ust_%{q*100:g}", oos[f"top_{q}"]) for q in cfg.top_quantiles]
+    rules = []
+    k = cfg.max_signals_per_bar
+    for name, m in base_rules:
+        m = cap_per_bar(oos, m, k)
+        rules.append((f"{name} | saatte≤{k}", m))
+        if "btc_dist_ema200" in oos:  # önceden belirlenmiş tek zamanlama filtresi: BTC EMA200 üstünde
+            rules.append((f"{name} | saatte≤{k} | BTC>EMA200", m & (oos["btc_dist_ema200"] > 0)))
     table = pd.DataFrame([evaluate_rule(oos, m, n, bar, cfg.n_null_trials, base) for n, m in rules])
 
     per_fold = oos.groupby("fold").agg(

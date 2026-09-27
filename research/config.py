@@ -12,7 +12,11 @@ class Config:
     min_median_quote_volume: float = 200_000.0  # Mum başına medyan USDT hacmi (likidite filtresi)
     min_history_bars: int = 24 * 120     # Bir coinin dahil edilmesi için gereken minimum mum sayısı
 
-    # --- Etiket (triple barrier) ---
+    # --- Etiket ---
+    # "relative": coin, aynı süre içinde piyasa ortalamasından daha iyi gidecek mi? (coin seçimi)
+    # "absolute": triple barrier, önce hedef mi stop mu? (zamanlama dahil)
+    label_mode: str = "relative"
+    drop_market_features: bool = True    # relative modda piyasa geneli özellikleri modelden çıkar
     side: str = "long"                   # "long" veya "short"
     tp_mult: float = 1.5                 # Hedef = giriş ± tp_mult * ATR%
     sl_mult: float = 1.5                 # Stop  = giriş ∓ sl_mult * ATR%
@@ -28,7 +32,9 @@ class Config:
     train_sample_frac: float = 1.0       # Hız için eğitim verisinden örnekleme oranı
 
     # --- Sinyal seçimi ---
-    report_thresholds: tuple = (0.55, 0.60, 0.65, 0.70, 0.75, 0.80)
+    calibration: str = "platt"           # "platt" (sağlam, 2 parametre) veya "isotonic"
+    max_signals_per_bar: int = 3         # Aynı saatte en fazla kaç sinyal (en güçlüler)
+    report_thresholds: tuple = (0.55, 0.60)
     top_quantiles: tuple = (0.01, 0.005, 0.001)   # Kalibrasyon diliminde belirlenen üst dilimler
     n_null_trials: int = 1000            # Rastgele seçim testi tekrar sayısı
 

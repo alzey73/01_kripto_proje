@@ -18,7 +18,7 @@ from .dataset import load_panel, synthetic_frames
 from .evaluate import MIN_SIGNALS, evaluate_all
 from .walkforward import run_walkforward
 
-PCT_COLS = ["isabet", "isabet_wilson_alt", "isabet_wilson_ust", "taban_oran", "ort_net_getiri",
+PCT_COLS = ["isabet", "isabet_wilson_alt", "isabet_wilson_ust", "taban_oran", "ort_net_getiri", "ort_fazla_getiri",
             "medyan_net_getiri", "getiri_ci_alt", "getiri_ci_ust", "toplam_net_getiri", "pozitif_katman_orani"]
 
 
@@ -34,7 +34,7 @@ def _fmt_rules(t: pd.DataFrame) -> str:
         if c in t:
             t[c] = t[c].map(lambda x: f"{x:.4f}" if pd.notna(x) else "-")
     cols = ["kural", "sinyal", "gunluk_sinyal", "isabet", "isabet_wilson_alt", "taban_oran",
-            "ort_net_getiri", "getiri_ci_alt", "kar_faktoru", "pozitif_katman_orani", "rastgele_p", "KANIT"]
+            "ort_net_getiri", "getiri_ci_alt", "ort_fazla_getiri", "kar_faktoru", "pozitif_katman_orani", "rastgele_p", "KANIT"]
     return t[[c for c in cols if c in t]].to_markdown(index=False)
 
 
@@ -48,7 +48,7 @@ def write_report(res: dict, imp: pd.DataFrame, cfg: Config, title: str, out_dir:
     lines = [
         f"# {title}",
         f"_Oluşturma: {datetime.now():%Y-%m-%d %H:%M}_  ",
-        f"Aralık **{cfg.interval}**, yön **{cfg.side}**, hedef **{cfg.tp_mult}×ATR**, stop **{cfg.sl_mult}×ATR**, "
+        f"Etiket **{cfg.label_mode}**, kalibrasyon **{cfg.calibration}**, aralık **{cfg.interval}**, yön **{cfg.side}**, hedef **{cfg.tp_mult}×ATR**, stop **{cfg.sl_mult}×ATR**, "
         f"süre **{cfg.horizon} mum**, gidiş-dönüş maliyet **%{cfg.round_trip_cost*100:.2f}**  ",
         f"Değerlendirilen dönem: **{'LOCKBOX DAHİL (nihai test)' if lockbox else 'yalnızca geliştirme dönemi'}**",
         "",
@@ -104,6 +104,7 @@ def main():
     ap.add_argument("--synthetic", choices=["null", "planted"])
     ap.add_argument("--include-lockbox", action="store_true")
     ap.add_argument("--interval", default=cfg.interval)
+    ap.add_argument("--label-mode", default=cfg.label_mode, choices=["relative", "absolute"])
     ap.add_argument("--side", default=cfg.side, choices=["long", "short"])
     ap.add_argument("--tp", type=float, default=cfg.tp_mult)
     ap.add_argument("--sl", type=float, default=cfg.sl_mult)
@@ -115,7 +116,7 @@ def main():
     args = ap.parse_args()
 
     cfg.interval, cfg.side, cfg.tp_mult, cfg.sl_mult = args.interval, args.side, args.tp, args.sl
-    cfg.horizon, cfg.train_sample_frac = args.horizon, args.sample
+    cfg.horizon, cfg.train_sample_frac, cfg.label_mode = args.horizon, args.sample, args.label_mode
 
     if args.synthetic:
         frames = synthetic_frames(planted_edge=args.edge if args.synthetic == "planted" else 0.0)

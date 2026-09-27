@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 from lightgbm import LGBMClassifier
 from sklearn.isotonic import IsotonicRegression
+from sklearn.linear_model import LogisticRegression
 
 from .config import Config
 from .features import feature_columns
@@ -21,6 +22,16 @@ from .features import feature_columns
 
 def _add_months(ts: pd.Timestamp, n: int) -> pd.Timestamp:
     return ts + pd.DateOffset(months=n)
+
+
+def fit_calibrator(raw: np.ndarray, y: np.ndarray, method: str):
+    """Ham skorları olasılığa çevirir. Platt: logit üzerinde 2 parametreli lojistik, uçlarda ezber yapmaz."""
+    if method == "isotonic":
+        iso = IsotonicRegression(out_of_bounds="clip", y_min=0, y_max=1).fit(raw, y)
+        return iso.predict
+    logit = lambda p: np.log(np.clip(p, 1e-6, 1 - 1e-6) / (1 - np.clip(p, 1e-6, 1 - 1e-6)))  # noqa: E731
+    lr = LogisticRegression(C=1.0).fit(logit(raw).reshape(-1, 1), y)
+    return lambda r: lr.predict_proba(logit(r).reshape(-1, 1))[:, 1]
 
 
 def dev_and_lockbox_split(panel: pd.DataFrame, cfg: Config) -> pd.Timestamp:
@@ -43,7 +54,7 @@ def make_folds(panel: pd.DataFrame, cfg: Config, until: pd.Timestamp) -> list[tu
 def run_walkforward(panel: pd.DataFrame, cfg: Config, include_lockbox: bool = False,
                     verbose: bool = True) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Test dilimlerinin tahminlerini (OOS) ve katman bazında özellik önemini döndürür."""
-    feats = feature_columns(panel)
+    feats = feature_columns(panel, drop_market=cfg.label_mode == "relative" and cfg.drop_market_features)
     bar = pd.Timedelta(cfg.interval)
     embargo = bar * (cfg.horizon + 1)
     lockbox_start = dev_and_lockbox_split(panel, cfg)
@@ -72,12 +83,13 @@ def run_walkforward(panel: pd.DataFrame, cfg: Config, include_lockbox: bool = Fa
         model.fit(core[feats], core["label"].astype(int))
 
         raw_cal = model.predict_proba(calib[feats])[:, 1]
-        iso = IsotonicRegression(out_of_bounds="clip", y_min=0, y_max=1).fit(raw_cal, calib["label"])
+        calibrate = fit_calibrator(raw_cal, calib["label"].to_numpy(), cfg.calibration)
         raw_test = model.predict_proba(test[feats])[:, 1]
 
-        out = test[["open_time", "symbol", "label", "net_ret", "exit_offset"]].copy()
+        keep = ["open_time", "symbol", "label", "net_ret", "exit_offset", "excess_ret", "btc_dist_ema200"]
+        out = test[[c for c in keep if c in test]].copy()
         out["raw"] = raw_test
-        out["prob"] = iso.predict(raw_test)
+        out["prob"] = calibrate(raw_test)
         out["fold"] = k
         out["is_lockbox"] = ts >= lockbox_start
         for q in cfg.top_quantiles:  # eşik kalibrasyon diliminden (geçmişten) belirlenir
