@@ -6,8 +6,11 @@ alınır ve bir sonraki pazartesi açılışına kadar tutulur. Komisyon + kayma
 
 ÖNCEDEN BELİRLENMİŞ KANIT KRİTERLERİ (hepsi birden):
   1. Rastgele K coin seçen 2000 portföyün Sharpe dağılımına karşı p < 0.05 / varyant sayısı (Bonferroni)
-  2. Eşit ağırlıklı evrene göre haftalık fazla getiri > 0 ve 4 haftalık blok bootstrap %95 alt sınırı > 0
-  3. Takvim yıllarının ≥ %70'inde eşit ağırlıklı evrenden daha iyi
+  2. Eşleştirilmiş rastgele portföye göre haftalık fazla getiri > 0 ve 4 haftalık blok bootstrap %95 alt sınırı > 0
+  3. Takvim yıllarının ≥ %70'inde eşleştirilmiş rastgele portföyden daha iyi
+  (Eşleştirilmiş rastgele: her hafta stratejinin tuttuğu sayıda rastgele coin. Koşullu sinyallerde nakit payı
+   farkı sonucu çarpıtmasın diye, ilk sürümdeki eşit ağırlık karşılaştırmasının yerine geçti.)
+SAT sinyalleri (adı SAT_ ile başlayan) ters yönde test edilir: sepetin rastgeleden anlamlı derecede kötü gitmesi.
   4. Sharpe oranı BTC al-tut'tan yüksek (yoksa BTC tutmak daha iyi)
 Son 6 ay (lockbox) yalnızca --include-lockbox ile, en sonda ve bir kez değerlendirilir.
 
@@ -77,17 +80,84 @@ def momentum(d, n: int) -> pd.DataFrame:
     return d["close"] / d["close"].shift(n) - 1
 
 
+def reversal(d, elig) -> dict:
+    """Katalog #4: son n günde en çok düşenleri al. 'kucuk': sadece o gün hacmi evrenin alt yarısında olanlar."""
+    qv30 = d["quote_volume"].rolling(30, min_periods=20).median().where(elig)
+    small = qv30.rank(axis=1, pct=True) <= 0.5
+    out = {}
+    for n in (1, 3, 7):
+        sc = -(d["close"] / d["close"].shift(n) - 1)
+        out[f"geri{n}"] = sc
+        out[f"geri{n}_kucuk"] = sc.where(small)
+    return out
+
+
+def _range_pos(d, n):
+    c = d["close"]
+    lo, hi = c.rolling(n, min_periods=n).min(), c.rolling(n, min_periods=n).max()
+    return (c - lo) / (hi - lo)
+
+
+def volume_surge(d, elig) -> dict:
+    """Katalog #6 (kullanıcı fikri): dip bölgesinde hacim + alım patlaması → AL.
+    Ters test: 1 haftalık yükseliş sonrası yataylaşma ve alımın durması → SAT sinyali (bu sepet kötü gitmeli)."""
+    qv, tb = d["quote_volume"], d["taker_buy_quote"]
+    vol_ratio = qv.rolling(3).mean() / qv.rolling(30, min_periods=20).mean().shift(3)
+    buy_ratio = tb.rolling(3).sum() / qv.rolling(3).sum()
+    bounce = d["close"] > d["close"].shift(3)
+    out = {}
+    for n in (30, 90):
+        base = (_range_pos(d, n) <= 0.2) & (vol_ratio >= 1.5) & (buy_ratio >= 0.5)
+        out[f"dip_alim{n}"] = vol_ratio.where(base)
+        out[f"dip_alim{n}_teyit"] = vol_ratio.where(base & bounce)
+    r7 = d["close"] / d["close"].shift(7) - 1
+    r3 = d["close"] / d["close"].shift(3) - 1
+    slowing = (qv.rolling(3).mean() < qv.shift(3).rolling(4).mean()) & (buy_ratio < 0.5)
+    tired = (r7 >= 0.15) & (r3.abs() <= 0.03)
+    out["SAT_yorgunluk"] = r7.where(tired)
+    out["SAT_yorgunluk_alim_durdu"] = r7.where(tired & slowing)
+    return out
+
+
+def load_funding(data_dir: str, index: pd.DatetimeIndex) -> pd.DataFrame:
+    """Günlük toplam fonlama oranı (coin başına). Günün tüm fonlamaları o günün kapanışında bilinir."""
+    parts = {}
+    for f in glob.glob(os.path.join(data_dir, "funding", "*.parquet")):
+        df = pd.read_parquet(f)
+        parts[os.path.basename(f)[:-8]] = df.groupby(df["funding_time"].dt.floor("D"))["funding_rate"].sum()
+    return pd.DataFrame(parts).reindex(index)
+
+
+def funding(d, elig) -> dict:
+    """Katalog #7: fonlama aşırılıkları. 'negatif' → short kalabalık, sıkışma beklentisi (AL).
+    'SAT_pozitif' → long kalabalık, düşüş beklentisi (bu sepet kötü gitmeli)."""
+    fr = load_funding(Config().data_dir, d["close"].index).reindex(columns=d["close"].columns)
+    # Karşılaştırma evreni: yalnızca o gün vadelisi (fonlama verisi) olan coinler
+    has_futures = fr.rolling(7, min_periods=1).count() > 0
+    out = {"_evren": has_futures}
+    for n in (3, 7):
+        f = fr.rolling(n, min_periods=n).mean()
+        out[f"fonlama{n}_negatif"] = (-f).where(f < 0)
+        out[f"SAT_fonlama{n}_pozitif"] = f.where(f > 0)
+    return out
+
+
 GROUPS = {
-    "momentum": lambda d: {f"mom{n}": momentum(d, n) for n in (7, 14, 30)},
+    "momentum": lambda d, elig: {f"mom{n}": momentum(d, n) for n in (7, 14, 30)},
+    "reversal": reversal,
+    "volume_surge": volume_surge,
+    "funding": funding,
 }
 
 
 # ---------------------------------------------------------------- portföy
 def run_portfolio(score: pd.DataFrame, elig: pd.DataFrame, rets: pd.DataFrame, k: int,
-                  regime: pd.Series | None) -> pd.Series:
-    """score/elig/regime pazar günü (sinyal günü) değerleriyle okunur; getiriler pazartesiden pazartesiye."""
+                  regime: pd.Series | None, full_invest: bool = False) -> tuple[pd.Series, pd.Series]:
+    """score/elig/regime pazar günü (sinyal günü) değerleriyle okunur; getiriler pazartesiden pazartesiye.
+    Her coin 1/K ağırlık alır; K'dan az coin koşulu sağlarsa kalan nakitte bekler (full_invest=False).
+    Dönüş: (haftalık net getiri, haftalık tutulan coin sayısı)."""
     w_prev = pd.Series(dtype=float)
-    out = {}
+    out, held = {}, {}
     for m in rets.index:
         s = m - pd.Timedelta(days=1)
         r = rets.loc[m]
@@ -96,33 +166,40 @@ def run_portfolio(score: pd.DataFrame, elig: pd.DataFrame, rets: pd.DataFrame, k
             w = pd.Series(dtype=float)  # nakitte bekle
         else:
             top = score.loc[s][ok].dropna().nlargest(k).index
-            w = pd.Series(1.0 / len(top), index=top) if len(top) else pd.Series(dtype=float)
+            size = 1.0 / len(top) if full_invest else 1.0 / k
+            w = pd.Series(size, index=top) if len(top) else pd.Series(dtype=float)
         turnover = w.sub(w_prev, fill_value=0).abs().sum()
         gross = float((w * r.reindex(w.index)).sum())
         out[m] = gross - turnover * COST_PER_SIDE
-        # hafta sonundaki ağırlıklar (fiyat değişimiyle kayar)
-        grown = w * (1 + r.reindex(w.index))
-        w_prev = grown / grown.sum() if grown.sum() > 0 else pd.Series(dtype=float)
-    return pd.Series(out)
+        held[m] = len(w)
+        # hafta sonundaki ağırlıklar: coin değerleri / toplam portföy değeri (nakit dahil)
+        w_prev = w * (1 + r.reindex(w.index)) / (1 + gross)
+    return pd.Series(out), pd.Series(held)
 
 
 def equal_weight(elig, rets) -> pd.Series:
-    return run_portfolio(pd.DataFrame(1.0, index=elig.index, columns=elig.columns), elig, rets, 10**6, None)
+    return run_portfolio(pd.DataFrame(1.0, index=elig.index, columns=elig.columns), elig, rets, 10**6, None,
+                         full_invest=True)[0]
 
 
-def random_sharpes(elig, rets, k: int, n: int, seed: int = 0) -> np.ndarray:
-    """Her hafta rastgele K uygun coin. Her hafta tam yenileme varsayılır (maliyet 2 × taraf)."""
+def random_sharpes(elig, rets, k: int, n: int, counts: pd.Series, seed: int = 0) -> np.ndarray:
+    """Eşleştirilmiş rastgele portföy: her hafta stratejinin tuttuğu SAYIDA rastgele uygun coin, 1/K ağırlık,
+    kalan nakit. Böylece yalnızca coin SEÇİMİ test edilir (nakit/zamanlama etkisi iki tarafta aynı).
+    Her hafta tam yenileme varsayılır (maliyet 2 × taraf × yatırım oranı)."""
     rng = np.random.default_rng(seed)
     R = np.zeros((n, len(rets)))
     for j, m in enumerate(rets.index):
         s = m - pd.Timedelta(days=1)
         r = rets.loc[m]
         pool = r[elig.loc[s] & r.notna()].to_numpy()
-        if len(pool) < k:
+        c = min(int(counts.get(m, 0)), len(pool))
+        if c == 0:
             continue
-        pick = rng.random((n, len(pool))).argsort(axis=1)[:, :k]
-        R[:, j] = pool[pick].mean(axis=1) - 2 * COST_PER_SIDE
-    return R.mean(1) / R.std(1) * np.sqrt(52)
+        pick = rng.random((n, len(pool))).argsort(axis=1)[:, :c]
+        R[:, j] = pool[pick].sum(axis=1) / k - 2 * COST_PER_SIDE * c / k
+    sd = R.std(1)
+    sharpes = np.where(sd > 0, R.mean(1) / np.where(sd > 0, sd, 1) * np.sqrt(52), 0.0)
+    return sharpes, pd.Series(R.mean(0), index=rets.index)
 
 
 # ---------------------------------------------------------------- metrikler
@@ -178,29 +255,41 @@ def main():
     ew = equal_weight(elig, rets)
     bench = {"BTC al-tut": btc, "Eşit ağırlık (tüm evren)": ew}
 
-    signals = GROUPS[args.group](d)
+    signals = GROUPS[args.group](d, elig)
+    if "_evren" in signals:  # grup kendi karşılaştırma evrenini daraltıyorsa (ör. sadece vadelisi olanlar)
+        elig = elig & signals.pop("_evren")
+        ew = equal_weight(elig, rets)
+        bench["Eşit ağırlık (grup evreni)"] = ew
     variants = {}
     for name, score in signals.items():
         for k in (5, 10):
             for filt in (False, True):
                 label = f"{name} | K={k}" + (" | BTC>SMA200" if filt else "")
-                variants[label] = (run_portfolio(score, elig, rets, k, regime if filt else None), k)
+                r, held = run_portfolio(score, elig, rets, k, regime if filt else None)
+                variants[label] = (r, k, held)
     n_var = len(variants)
+    alpha = 0.05 / n_var
 
-    rand = {k: random_sharpes(elig, rets, k, N_RANDOM) for k in (5, 10)}
     btc_sharpe = stats(btc)["sharpe"]
     rows = []
-    for label, (r, k) in variants.items():
+    for label, (r, k, held) in variants.items():
         st = stats(r)
-        ex = r - ew
+        rs, rmean = random_sharpes(elig, rets, k, N_RANDOM, held)
+        ex = r - rmean  # eşleştirilmiş rastgele portföye göre fazla getiri (yalnızca seçim becerisi)
         lo, hi = block_bootstrap_ci(ex)
-        yr = yearly(r) - yearly(ew)
-        yr = yr[r.groupby(r.index.year).size() >= 26]
-        p = (np.sum(rand[k] >= st["sharpe"]) + 1) / (N_RANDOM + 1)
-        row = {"strateji": label, **st, "rastgele_p": p, "fazla_haftalik": ex.mean(), "fazla_ci_alt": lo,
+        yr = (yearly(r) - yearly(rmean))[r.groupby(r.index.year).size() >= 26]
+        sharpe = st["sharpe"] if pd.notna(st["sharpe"]) else 0.0
+        p_hi = (np.sum(rs >= sharpe) + 1) / (N_RANDOM + 1)
+        p_lo = (np.sum(rs <= sharpe) + 1) / (N_RANDOM + 1)
+        row = {"strateji": label, **st, "yatirim_orani": (held / k).mean(),
+               "rastgele_p": p_lo if label.startswith("SAT") else p_hi,
+               "fazla_haftalik": ex.mean(), "fazla_ci_alt": lo, "fazla_ci_ust": hi,
                "yil_ustun_oran": (yr > 0).mean()}
-        row["KANIT"] = bool(p < 0.05 / n_var and ex.mean() > 0 and lo > 0
-                            and row["yil_ustun_oran"] >= 0.7 and st["sharpe"] > btc_sharpe)
+        if label.startswith("SAT"):  # satış sinyali: bu sepet rastgeleden KÖTÜ gitmeli
+            row["KANIT"] = bool(p_lo < alpha and ex.mean() < 0 and hi < 0 and (yr < 0).mean() >= 0.7)
+        else:
+            row["KANIT"] = bool(p_hi < alpha and ex.mean() > 0 and lo > 0
+                                and row["yil_ustun_oran"] >= 0.7 and sharpe > btc_sharpe)
         rows.append(row)
     table = pd.DataFrame(rows).sort_values("sharpe", ascending=False)
     bt = pd.DataFrame([{"strateji": n, **stats(r)} for n, r in bench.items()])
@@ -209,8 +298,8 @@ def main():
     name = f"weekly_{args.group}" + ("_LOCKBOX" if args.include_lockbox else "")
     out_dir = os.path.join("reports", name)
     os.makedirs(out_dir, exist_ok=True)
-    pct = ["yillik_getiri", "yillik_oynaklik", "max_dusus", "pozitif_hafta", "toplam_getiri",
-           "fazla_haftalik", "fazla_ci_alt", "yil_ustun_oran"]
+    pct = ["yillik_getiri", "yillik_oynaklik", "max_dusus", "pozitif_hafta", "toplam_getiri", "yatirim_orani",
+           "fazla_haftalik", "fazla_ci_alt", "fazla_ci_ust", "yil_ustun_oran"]
 
     def fmt(t):
         t = t.copy()
@@ -244,8 +333,12 @@ def main():
         f"## Varyantlar ({n_var} adet, Bonferroni eşiği p < {0.05/n_var:.4f})",
         fmt(table),
         "",
-        "KANIT = rastgele K coine karşı p < Bonferroni eşiği, eşit ağırlığa göre fazla getiri ve bootstrap alt sınırı > 0, "
-        "yılların ≥ %70'inde eşit ağırlıktan iyi, Sharpe > BTC al-tut.",
+        "Karşılaştırma: her hafta stratejinin tuttuğu sayıda rastgele coin seçen 2000 portföy (eşleştirilmiş rastgele). "
+        "`fazla_*` bu portföye göre haftalık fazla getiri, `yatirim_orani` ortalama yatırımda kalma oranı.  \n"
+        "AL kuralları için KANIT = p < Bonferroni eşiği, fazla getiri ve bootstrap alt sınırı > 0, yılların ≥ %70'inde "
+        "rastgeleden iyi, Sharpe > BTC al-tut.  \n"
+        "SAT kuralları (`SAT_` ile başlayan) için KANIT = sepet rastgeleden anlamlı derecede KÖTÜ (p < eşik), "
+        "fazla getiri ve bootstrap üst sınırı < 0, yılların ≥ %70'inde rastgeleden kötü.",
         "",
         f"## Yıllık getiriler (en yüksek Sharpe: {best})",
         (yrs * 100).round(1).astype(str).add("%").to_markdown(),

@@ -69,10 +69,11 @@ def test_weekly_portfolio_costs_and_selection():
     rets = w.weekly_returns(d, mondays)
     elig = pd.DataFrame(True, index=idx, columns=cols)
     score = close / close.shift(5) - 1
-    r = w.run_portfolio(score, elig, rets, k=1, regime=None)
+    r, held = w.run_portfolio(score, elig, rets, k=1, regime=None)
+    assert held.iloc[0] == 1
     exp = d["open"].loc[idx[14], "A"] / d["open"].loc[idx[7], "A"] - 1
     assert np.isclose(r.iloc[0], exp - w.COST_PER_SIDE)  # en güçlü A seçildi, giriş maliyeti 1 taraf
-    cash = w.run_portfolio(score, elig, rets, k=1, regime=pd.Series(False, index=idx))
+    cash, _ = w.run_portfolio(score, elig, rets, k=1, regime=pd.Series(False, index=idx))
     assert cash.iloc[0] == 0.0
 
 
@@ -84,3 +85,16 @@ def test_weekly_delisted_exits_at_last_close():
     d = {"open": close.copy(), "close": close}
     r = w.weekly_returns(d, pd.DatetimeIndex([idx[7]]))
     assert np.isclose(r.iloc[0]["X"], 40 / 100 - 1)
+
+
+def test_weekly_partial_cash_weights():
+    """K=2 iken tek coin koşulu sağlarsa yarısı nakitte kalır."""
+    from research import weekly as w
+    idx = pd.date_range("2024-01-01", periods=21, freq="D", tz="UTC")
+    close = pd.DataFrame({"A": np.linspace(100, 200, 21), "B": 100.0}, index=idx)
+    d = {"open": close.shift(1).fillna(100.0), "close": close}
+    rets = w.weekly_returns(d, pd.DatetimeIndex([idx[7]]))
+    score = pd.DataFrame({"A": 1.0, "B": np.nan}, index=idx)
+    r, held = w.run_portfolio(score, pd.DataFrame(True, index=idx, columns=["A", "B"]), rets, k=2, regime=None)
+    assert held.iloc[0] == 1
+    assert np.isclose(r.iloc[0], 0.5 * rets.iloc[0]["A"] - 0.5 * w.COST_PER_SIDE)
